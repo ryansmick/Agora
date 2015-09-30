@@ -1,0 +1,526 @@
+@using Agora.Models;
+@using Microsoft.AspNet.Identity;
+@model Agora.Models.ForumThreadModel
+
+@{
+    ViewBag.Title = Model.thread.title;
+}
+<style>
+    blockquote {
+        margin-bottom: 0px;
+    }
+    .ReplySection{
+        -webkit-transition: all 0.4s ease;
+        -moz-transition: all 0.4s ease;
+        -ms-transition: all 0.4s ease;
+        -o-transition: all 0.4s ease;
+        transition: all 0.4s ease;
+    }
+
+    .PostBody{
+        -webkit-transition: all 0.25s ease;
+        -moz-transition: all 0.25s ease;
+        -ms-transition: all 0.25s ease;
+        -o-transition: all 0.25s ease;
+        transition: all 0.25s ease;
+    }
+    .media-body{
+        -webkit-transition: all 0.25s ease;
+        -moz-transition: all 0.25s ease;
+        -ms-transition: all 0.25s ease;
+        -o-transition: all 0.25s ease;
+        transition: all 0.25s ease;
+    }
+</style>
+<div class="panel panel-default" ng-app="Agora" ng-controller="ForumThreadController">
+    <div class="panel-heading">
+        <ol class="breadcrumb" style="margin-bottom: 0px; background: none;">
+            <li>@Html.ActionLink("Forums", "Index")</li>
+            <li>@Html.ActionLink(@Model.forum.title, "ForumPage", new { id = Model.forum.ID })</li>
+            <li class="active">{{ThreadName}}</li>
+        </ol>
+    </div>
+    <div class="panel-body">
+        <div class="page-header">
+            <h1 class="text-info">{{ThreadName}}</h1>
+            <h2 class="media-heading">@AccountRepository.UsernameFromID(Model.thread.authorID), @Model.thread.create_dt.ToString("MM/dd/yyyy HH:mm tt")</h2>
+            <h3>{{ThreadDescription}}</h3>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-success" ng-click="setReplyThread()">Reply</button>
+                @if (User.Identity.GetUserId() == Model.thread.authorID)
+                {   
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-warning" data-toggle="modal" data-target="#EditThreadModal">Edit</button>
+                        <button class="btn btn-danger" data-toggle="modal" data-target="#DeleteThreadModal">Delete</button>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="ReplySection" ng-if="RepliedPost==0" style="height: 0px;">
+            @Html.Partial("ReplyPost")
+        </div>
+        <script type="text/ng-template" id="CompositePost.html">
+            <div class="media PostBody" style="border: 3px solid rgba(0,0,0,0); background-color: rgba(0,0,0,0);">
+                <input type="hidden" class="postID" value="{{post.post.ID}}" />
+                <a class="pull-left" href="#">
+                    <img class="media-object img-circle" style="height: 64px; width:64px;" src="/Content/avafour.jpg" alt="portrait">
+                </a>
+                <div class="media-body">
+                    <div class="CurrentPost" style="width: 375px; margin-bottom: 10px;">
+                        <span style="float: right;">
+                            <a class="text-success" ng-click="upvotePost(post.post.ID, post)" href="#"><i class="fa fa-hand-o-up fa-lg"></i>{{post.upvotes}}</a>
+                            <br />
+                            <a class="text-danger" ng-click="downvotePost(post.post.ID, post)" href="#"><i class="fa fa-hand-o-down fa-lg"></i>{{post.downvotes}}</a>
+                            <br />
+                        </span>
+                        <h4 style="margin-bottom: 0px;" class="media-heading"> {{post.author}}</h4>
+                        <h5 style="margin: 0; margin-bottom: 5px;" class="text-info">{{post.dateTime}}</h5>
+                        <pre>{{post.post.body}}</pre>
+                        <div style="margin-top: 15px;" class="btn-group btn-group-sm">
+                            <button class="btn btn-success" ng-click="setReplyPost(post)">Reply</button>
+                            <div style="display: inline;" ng-if="post.isEditable">
+                                <div class ="btn-group btn-group-sm">
+                                    <button class="btn btn-warning" ng-click="prepareModalForEdit(post.post.ID, post.post.body)" data-toggle="modal" data-target="#EditPostModal">Edit</button>
+                                    <button class="btn btn-danger" ng-click="prepareModalForDelete(post.post.ID)" data-toggle="modal" data-target="#DeletePostModal">Delete</button>
+                                </div class ="btn-group btn-group-sm">
+                            </div>                            
+                        </div>
+                    </div>
+                    <div>
+                        <div class="ReplySection" ng-if="RepliedPost==post" style="height: 0px;">
+                            @Html.Partial("ReplyPost")
+                        </div>
+                        <div ng-repeat="post in post.children" ng-include="'CompositePost.html'">
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </script>
+        <div class="container-fluid" style="padding: 0px;" id="ThreadBody">
+            <div ng-hide="postsLoaded" style="text-align: center;">
+                <i style="font-size: 100px;" class="fa fa-spinner fa-spin text-muted"></i>
+            </div>
+            <div ng-show="postsLoaded" ng-repeat="post in posts" ng-include="'CompositePost.html'">
+
+            </div>
+        </div>
+        <!--Modals-->
+        <div class="modal fade" id="AddPostModal" tabindex="-1" role="dialog" aria-labelledby="AddPostModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        @Html.Partial("ReplyPost")
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="EditPostModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        @Html.Partial("EditPost")
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="DeletePostModal" tabindex="-1" role="dialog" aria-labelledby="DeletePostModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    @Html.Partial("DeletePost")
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="EditThreadModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    @Html.Partial("EditThread")
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="DeleteThreadModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    @Html.Partial("DeleteThread")
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="DeleteAlertModal" tabindex="-1" role="dialog" aria-labelledby="DeleteAlertModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <div class="text-danger" style="word-break: normal; text-align: center;">
+                            <h3>This thread is being deleted.</h3>
+                            <h5>You are now being redirected to the @Model.forum.title forum.</h5>
+                        </div>
+                        <br />
+                        <br />
+                        <button id="btnDismissDeleteAlert" data-dismiss="modal" class="btn btn-danger btn-block" type="button"><span class="glyphicon glyphicon-ok"></span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+    (function () {
+        //controller start
+        var app = angular.module("Agora", [])
+
+        var ForumThreadController = function ($scope) {
+            var self = this;
+
+            $scope.ThreadName = "@Html.Raw(Model.thread.title)";
+            $scope.ThreadDescription = "@Html.Raw(Model.thread.description)";
+            $scope.threadTitle = "@Html.Raw(Model.thread.title)";
+            $scope.threadDescription = "@Html.Raw(Model.thread.description)";
+            $scope.ThreadID = "@Html.Raw(Model.thread.ID)"
+            $scope.message = "Hello";
+            $scope.posts = [];
+            $scope.postsLoaded = false;
+            $scope.RepliedPost = -1;
+            $scope.replyVars = {
+                replyBody: ''
+            };
+            
+            //Rating logic
+            $scope.upvotePost = function (postID, Post) {
+                ForumThreadHub.server.upvote(postID);
+                ResponsiveUpvote(Post);
+            };
+            $scope.downvotePost = function (postID, Post) {
+                ForumThreadHub.server.downvote(postID);
+                ResponsiveDownvote(Post);
+            };
+            //End Rating logic
+
+            //CRUD logic
+            $scope.prepareModalForReply = function (threadID, parentID) {
+                $scope.replyThreadID = threadID;
+                $scope.replyParentID = parentID;
+                $scope.replyVars.replyBody = "";
+            };
+
+            $scope.setReplyPost = function (post) {
+                if ($scope.RepliedPost == post) {
+                    $scope.closeReplyBox();
+                }
+                else {
+                    $scope.closeReplyBox();
+                    //because of the setTimeout in the closeReplybox function, the Replied Post is not set to -1 before the following if
+                    //statement is executed
+                    if ($scope.RepliedPost == -1) {
+                        $scope.RepliedPost = post;
+                        $scope.prepareModalForReply(post.post.threadID, post.post.ID);
+                        setTimeout(function () { //give the replyform 1ms to render before opac transition
+                            $('.ReplySection').css('height', '185px').css('overflow-y', 'hidden');
+                        }, 1);
+                    }
+                    else {
+                        setTimeout(function () {
+                            $scope.$apply(function () {
+                                $scope.RepliedPost = post;
+                                $scope.prepareModalForReply(post.post.threadID, post.post.ID);
+                            });
+                            setTimeout(function () { //give the replyform 1ms to render before opac transition
+                                $('.ReplySection').css('height', '185px').css('overflow-y', 'hidden');
+                            }, 1);
+                        }, 400);
+                    }
+                }
+            };
+
+            $scope.setReplyThread = function () {
+                if ($scope.RepliedPost == 0) {
+                    $scope.closeReplyBox();
+                }
+                else {
+                    $scope.closeReplyBox();
+                    //because of the setTimeout in the closeReplybox function, the Replied Post is not set to -1 before the following if
+                    //statement is executed
+                    if ($scope.RepliedPost == -1) {
+                        $scope.RepliedPost = 0;
+                        $scope.prepareModalForReply($scope.ThreadID, null);
+
+                        setTimeout(function () { //give the replyform 1ms to render before opac transition
+                            $('.ReplySection').css('height', '185px').css('overflow-y', 'hidden');
+                        }, 1);
+                    }
+                    else {
+                        setTimeout(function () {
+                            $scope.$apply(function () {
+                                $scope.RepliedPost = 0;
+                                $scope.prepareModalForReply($scope.ThreadID, null);
+                            });
+                            setTimeout(function () { //give the replyform 1ms to render before opac transition
+                                $('.ReplySection').css('height', '185px').css('overflow-y', 'hidden');
+                            }, 1);
+                        }, 400);
+                    }
+                }
+            }
+
+            $scope.closeReplyBox = function () {
+                if ($scope.RepliedPost != -1) {
+                    $('.ReplySection').css('height', '0px').css('overflow-y', 'hidden');
+                    setTimeout(function () { //give the replyform 1ms to render before opac transition
+                        $scope.RepliedPost = -1;
+                    }, 400);
+                }
+            };
+
+            $scope.replyPost = function (isValid) {
+                if (isValid)
+                {
+                    ForumThreadHub.server.replyToPost($scope.replyThreadID, $scope.replyParentID, $scope.replyVars.replyBody);
+                    $scope.closeReplyBox();
+                }
+            };
+            $scope.prepareModalForEdit = function (postID, postBody) {
+                $scope.editPostID = postID;
+                $scope.editBody = postBody;
+            };
+            $scope.editPost = function (isValid) {
+                if (isValid)
+                {
+                    ForumThreadHub.server.editPost($scope.editPostID, $scope.editBody);
+                    $('#btnDismissEdit').click();
+                }
+            };
+            $scope.prepareModalForDelete = function (postID) {
+                $scope.deletePostID = postID;
+            };
+            $scope.deletePost = function (isValid) {
+                if (isValid)
+                {
+                    ForumThreadHub.server.deletePost($scope.deletePostID);
+                    $('#btnDismissDelete').click();
+                }
+            };
+
+            $scope.editThread = function (isValid) {
+                if (isValid) {
+                    ForumThreadHub.server.editThread($scope.threadTitle, $scope.threadDescription);
+                    $('#btnDismissEditThread').click();
+                }
+            }
+
+            $scope.deleteThread = function (isValid) {
+                if (isValid) {
+                    ForumThreadHub.server.deleteThread();
+                    $('#btnDismissDeleteThread').click();
+                }
+            }
+            //end CRUD logic
+
+            //Other functions
+            function ResponsiveUpvote(Post)
+            {
+                if (Post.userRatingWeight <= 0) {
+                    Post.upvotes++;
+                    if (Post.userRatingWeight < 0) {
+                        Post.downvotes--;
+                    }
+                }
+                Post.userRatingWeight = 1;
+            }
+            function ResponsiveDownvote(Post)
+            {
+                if (Post.userRatingWeight >= 0) {
+                    Post.downvotes++;
+                    if (Post.userRatingWeight > 0) {
+                        Post.upvotes--;
+                    }
+                }
+                Post.userRatingWeight = -1;
+            }
+            function LookForPost(postID, compositeArr)
+            {
+                var targetPost;
+                $(compositeArr).each(function (index, value) {
+                    if (value.post.ID == postID)
+                    {
+                        targetPost = value;
+                    }
+                    var childTarget = LookForPost(postID, value.children);
+                    if (childTarget)
+                    {
+                        targetPost = childTarget;
+                    }
+                });
+                return targetPost;
+            }
+            function LookForParent(postID, compositeArr) {
+                var targetArr;
+                $(compositeArr).each(function (index, value) {
+                    if (value.post.ID == postID) {
+                        targetArr = compositeArr;
+                    }
+                    var childTarget = LookForParent(postID, value.children);
+                    if (childTarget) {
+                        targetArr = childTarget;
+                    }
+                });
+                return targetArr;
+            }
+            function IndexOfPostInParent(postID, parentArr)
+            {
+
+            }
+            function ContainsPost(postID, compositeArr)
+            {
+                var iReturn = -1;
+                $(compositeArr).each(function (index, value) {
+                    if (value.post.ID == postID)
+                    {
+                        iReturn =  index;
+                    }
+                });
+                return iReturn;
+            }
+            function DeletePost(postID, postArr) {
+                var idx = ContainsPost(postID, postArr); 
+                if (idx >= 0)
+                {
+                    $scope.$apply(function () {
+                        postArr = postArr.splice(idx, 1);
+                    });
+                }
+                else {
+                    $(postArr).each(function (index, value) {
+                        DeletePost(postID, value.children);
+                    });
+                }
+            }
+            function postGlow(newPost, r, g, b, offset) {
+                //Sets the background color of the post body after the post is added to the page
+                //Bootstrap colors
+                //green = 82, 210, 115
+                //blue = 66, 139, 202
+                //red = 233, 79, 100
+                var post = $('input[value="' + newPost.post.ID + '"]').parent('.PostBody');
+                post.css('background-color', 'rgba(' + r + ',' + g + ',' + b + ', 0)');
+                window.setTimeout(function () {
+                    post.css('background-color', 'rgba(' + r + ',' + g + ',' + b + ', .9)');
+                }, offset);
+                window.setTimeout(function () {
+                    post.css('background-color', 'rgba(' + r + ',' + g + ',' + b + ', 0)');
+                }, 3000);
+            }
+
+            //Sets the border color of the post body after an upvote or downvote
+            function postBorder(ID, r, g, b, offset) {
+                var post = $('input[value="' + ID + '"]').parent('.PostBody').children('.media-body').children('.CurrentPost');
+                post.css('border', '3px solid rgba(' + r + ',' + g + ',' + b + ', 1)');
+                window.setTimeout(function () {
+                    post.css('border', '3px solid rgba(' + r + ',' + g + ',' + b + ', 0)');
+                    window.setTimeout(function () {
+                        post.css('border', '3px solid rgba(0,0,0,0)');
+                    }, offset/2);
+                }, 2000);
+            }
+            //end other functions
+
+            //hub start
+            var ForumThreadHub = $.connection.forumThreadHub;
+
+            ForumThreadHub.client.initCompositePosts = function (CompositePostTree) {
+                $scope.$apply(function () {
+                    $scope.posts = CompositePostTree;
+                    $scope.postsLoaded = true;
+                });
+            };
+
+            //hub callbacks
+            ForumThreadHub.client.refreshUpvotes = function (PostID, numUpvotes, upvoted) {
+                debugger;
+                var Post = LookForPost(PostID, $scope.posts);
+                if (upvoted) {
+                    postBorder(PostID, 82, 210, 115, 250);
+                }
+                $scope.$apply(function () {
+                    Post.upvotes = numUpvotes;
+                });
+            };
+            ForumThreadHub.client.refreshDownvotes = function (PostID, numDownvotes, downvoted) {
+                debugger;
+                var Post = LookForPost(PostID, $scope.posts);
+                if (downvoted) {
+                    postBorder(PostID, 233, 79, 100, 250);
+                }
+                $scope.$apply(function () {
+                    Post.downvotes = numDownvotes;
+                });
+            };
+            ForumThreadHub.client.appendNewPostToPoster = function (newPost) {
+                if (newPost.post.parentPostID != null)
+                {
+                    var parent = LookForPost(newPost.post.parentPostID, $scope.posts);
+                    $scope.$apply(function () {
+                        parent.children[parent.children.length] = newPost;
+                    });
+                }
+                else
+                {
+                    $scope.$apply(function () {
+                        $scope.posts[$scope.posts.length] = newPost;
+                    });
+                }
+                //forces the view to move to where the new post was added on the page
+                var position = $('input[value="' + newPost.post.ID + '"]').parent('.PostBody').offset().top;
+                $('html,body').animate({
+                    scrollTop: position - 300
+                }, 1000);
+
+                postGlow(newPost, 66, 139, 202, 1000);
+            };
+            ForumThreadHub.client.appendNewPostToOthersInGroup = function (newPost) {
+                if (newPost.post.parentPostID != null) {
+                    var parent = LookForPost(newPost.post.parentPostID, $scope.posts);
+                    $scope.$apply(function () {
+                        parent.children[parent.children.length] = newPost;
+                    });
+                }
+                else {
+                    $scope.$apply(function () {
+                        $scope.posts[$scope.posts.length] = newPost;
+                    });
+                }
+                postGlow(newPost, 66, 139, 202, 500);
+
+            };
+            ForumThreadHub.client.appendEditPost = function (editedPost) {
+                var target = LookForPost(editedPost.post.ID, $scope.posts);
+                $scope.$apply(function () {
+                    target.post.body = editedPost.post.body;
+                });
+            };
+            ForumThreadHub.client.appendDeletePost = function (PostID) {
+                DeletePost(PostID, $scope.posts);
+            };
+
+            ForumThreadHub.client.appendEditThread = function (thread) {
+                $scope.$apply(function(){
+                    $scope.ThreadName = thread.title;
+                    $scope.ThreadDescription = thread.description;
+                });
+            }
+
+            ForumThreadHub.client.appendDeleteThread = function (ForumID) {
+                $('#DeleteAlertModal').modal('show');
+                window.setTimeout(function () {
+                    window.location.assign('@Url.Action("ForumPage", "Forum")/' + ForumID);
+                }, 5000);
+            }
+            //end hub callbacks
+            $.connection.hub.qs = { 'ThreadID': '@(Model.thread.ID)' };
+            $.connection.hub.start().done(function () {
+
+            });
+            //hub end
+        };
+
+        app.controller("ForumThreadController", ForumThreadController);
+        //controller end
+    }());
+</script>
